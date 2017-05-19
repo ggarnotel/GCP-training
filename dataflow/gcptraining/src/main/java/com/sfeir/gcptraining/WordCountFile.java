@@ -3,7 +3,7 @@ package com.sfeir.gcptraining;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
-import org.apache.beam.sdk.options.BigQueryOptions;
+import org.apache.beam.sdk.io.gcp.bigquery.BigQueryOptions;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.DefaultValueFactory;
 import org.apache.beam.sdk.options.Description;
@@ -76,15 +76,15 @@ public class WordCountFile {
 		      .as(WordCountOptions.class);
 		    Pipeline p = Pipeline.create(options);
 
-		    PCollection<KV<String, Long>> counts = p.apply("ReadLines Files", TextIO.Read.from(options.getInputFile()))
+		    PCollection<KV<String, Long>> counts = p.apply("ReadLines Files", TextIO.read().from(options.getInputFile()))
 		    										.apply(new CountWords());
 		     
 		     counts.apply(MapElements.via(new FormatAsTextFn()))
-		     	   .apply("WriteCounts", TextIO.Write.to(options.getOutput()));
+		     	   .apply("WriteCounts", TextIO.write().to(options.getOutput()));
 
 		     counts.apply(MapElements.via(new FormatAsTableRow()))
 			   	   .apply("WriteCounts in BigQuery", 
-			   			 BigQueryIO.Write
+			   			 BigQueryIO.writeTableRows()
 				   	        .to(options.getTableCompleteBQ())
 				   	        .withSchema(WordCount.buildSchema())
 				   	        .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED)

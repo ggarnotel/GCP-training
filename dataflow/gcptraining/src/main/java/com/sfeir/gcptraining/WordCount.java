@@ -20,19 +20,20 @@ package com.sfeir.gcptraining;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.beam.sdk.transforms.Aggregator;
+import org.apache.beam.sdk.metrics.Counter;
+import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SimpleFunction;
-import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 
 import com.google.api.services.bigquery.model.TableFieldSchema;
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.api.services.bigquery.model.TableSchema;
+import com.sfeir.gcptraining.common.ExampleUtils;
 
 /**
  * An example that counts words in Shakespeare and includes Beam best practices.
@@ -43,8 +44,8 @@ import com.google.api.services.bigquery.model.TableSchema;
  * pipeline, for introduction of additional concepts.
  *
  * <p>For a detailed walkthrough of this example, see
- *   <a href="http://beam.apache.org/use/walkthroughs/">
- *   http://beam.apache.org/use/walkthroughs/
+ *   <a href="https://beam.apache.org/get-started/wordcount-example/">
+ *   https://beam.apache.org/get-started/wordcount-example/
  *   </a>
  *
  * <p>Basic concepts, also in the MinimalWordCount example:
@@ -85,17 +86,16 @@ public class WordCount {
    * to a ParDo in the pipeline.
    */
   static class ExtractWordsFn extends DoFn<String, String> {
-    private final Aggregator<Long, Long> emptyLines =
-        createAggregator("emptyLines", Sum.ofLongs());
+    private final Counter emptyLines = Metrics.counter(ExtractWordsFn.class, "emptyLines");
 
     @ProcessElement
     public void processElement(ProcessContext c) {
       if (c.element().trim().isEmpty()) {
-        emptyLines.addValue(1L);
+        emptyLines.inc();
       }
 
       // Split the line into words.
-      String[] words = c.element().split("[^a-zA-Z']+");
+      String[] words = c.element().split(ExampleUtils.TOKENIZER_PATTERN);
 
       // Output each word encountered into the output PCollection.
       for (String word : words) {
@@ -125,6 +125,17 @@ public class WordCount {
   }
 
   /**
+   * Helper method to build the table schema for the output table.
+   */
+  public static TableSchema buildSchema() {
+    List<TableFieldSchema> fields = new ArrayList<>();
+    fields.add(new TableFieldSchema().setName("word").setType("STRING"));
+    fields.add(new TableFieldSchema().setName("count").setType("INTEGER"));
+    TableSchema schema = new TableSchema().setFields(fields);
+    return schema;
+  }
+  
+  /**
    * A PTransform that converts a PCollection containing lines of text into a PCollection of
    * formatted word counts.
    *
@@ -147,17 +158,6 @@ public class WordCount {
 
       return wordCounts;
     }
-  }
-
-  /**
-   * Helper method to build the table schema for the output table.
-   */
-  public static TableSchema buildSchema() {
-    List<TableFieldSchema> fields = new ArrayList<>();
-    fields.add(new TableFieldSchema().setName("word").setType("STRING"));
-    fields.add(new TableFieldSchema().setName("count").setType("INTEGER"));
-    TableSchema schema = new TableSchema().setFields(fields);
-    return schema;
   }
 
 }

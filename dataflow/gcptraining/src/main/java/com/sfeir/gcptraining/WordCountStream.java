@@ -2,15 +2,14 @@ package com.sfeir.gcptraining;
 
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
-import org.apache.beam.sdk.io.PubsubIO;
-import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.DefaultValueFactory;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.options.PubsubOptions;
 import org.apache.beam.sdk.options.Validation.Required;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
@@ -21,7 +20,6 @@ import org.joda.time.Duration;
 
 import com.sfeir.gcptraining.WordCount.CountWords;
 import com.sfeir.gcptraining.WordCount.FormatAsTableRow;
-import com.sfeir.gcptraining.WordCount.FormatAsTextFn;
 
 public class WordCountStream {
 	  public interface WordCountOptions extends PubsubOptions {
@@ -83,14 +81,14 @@ public class WordCountStream {
 		      .as(WordCountOptions.class);
 		    Pipeline p = Pipeline.create(options);
 
-		    PCollection<KV<String, Long>> counts = p.apply("ReadLines PubSub", PubsubIO.<String>read().topic(options.getTopicComplete()).withCoder(StringUtf8Coder.of()))
+		    PCollection<KV<String, Long>> counts = p.apply("ReadLines PubSub", PubsubIO.readStrings().fromTopic(options.getTopicComplete()))
 										    		.apply(Window.<String>into(
 											    		    FixedWindows.of(Duration.standardMinutes(1))))
 		    										.apply(new CountWords());
 
 		     counts.apply(MapElements.via(new FormatAsTableRow()))
 			   	   .apply("WriteCounts in BigQuery", 
-			   			 BigQueryIO.Write
+			   			 BigQueryIO.writeTableRows()
 				   	        .to(options.getTableCompleteBQ())
 				   	        .withSchema(WordCount.buildSchema())
 				   	        .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED));
